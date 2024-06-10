@@ -1,4 +1,9 @@
 Resources:
+
+  #----
+  # InputBucket
+  #----
+
   InputBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -11,6 +16,7 @@ Resources:
       PublicAccessBlockConfiguration:
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
+
   InputBucketBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -28,96 +34,90 @@ Resources:
             Condition:
               Bool:
                 aws:SecureTransport: 'false'
-  TranscribeFunction:
-    Type: AWS::Serverless::Function
+
+  #----
+  # OutputNotificationTopic
+  #----
+
+  OutputNotificationTopic:
+    Type: AWS::SNS::Topic
     Properties:
-      Description: !Sub
-        - Stack ${AWS::StackName} Function ${ResourceName}
-        - ResourceName: TranscribeFunction
-      CodeUri: src/transcribe
-      Handler: handler.handler
-      Runtime: python3.11
-      MemorySize: 3008
-      Timeout: 30
-      Tracing: Active
-      Events:
-        InputBucket:
-          Type: S3
-          Properties:
-            Bucket: !Ref InputBucket
-            Events:
-              - s3:ObjectCreated:*
-              - s3:ObjectRemoved:*
-      Environment:
-        Variables:
-          TRANSCRIBEBUCKET_BUCKET_NAME: !Ref TranscribeBucket
-          TRANSCRIBEBUCKET_BUCKET_ARN: !GetAtt TranscribeBucket.Arn
+      DisplayName: Call Analytics Output Notification Topic
+      TopicName: !Sub ${AWS::StackName}-notification-topic-${AWS::AccountId}
+      Subscription:
+        - Protocol: email
+          Endpoint: 'wojciech.doganowski@tv3.lt'
+
+  #----
+  # AnalyzeFunction
+  #----
+
+  AnalyzeFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
-        - Statement:
-            - Effect: Allow
-              Action:
-                - s3:GetObject
-                - s3:GetObjectAcl
-                - s3:GetObjectLegalHold
-                - s3:GetObjectRetention
-                - s3:GetObjectTorrent
-                - s3:GetObjectVersion
-                - s3:GetObjectVersionAcl
-                - s3:GetObjectVersionForReplication
-                - s3:GetObjectVersionTorrent
-                - s3:ListBucket
-                - s3:ListBucketMultipartUploads
-                - s3:ListBucketVersions
-                - s3:ListMultipartUploadParts
-                - s3:AbortMultipartUpload
-                - s3:DeleteObject
-                - s3:DeleteObjectVersion
-                - s3:PutObject
-                - s3:PutObjectLegalHold
-                - s3:PutObjectRetention
-                - s3:RestoreObject
-              Resource:
-                - !Sub arn:${AWS::Partition}:s3:::${TranscribeBucket}
-                - !Sub arn:${AWS::Partition}:s3:::${TranscribeBucket}/*
-            - Effect: Allow
-              Action:
-                - transcribe:StartTranscriptionJob
-      Architectures:
-        - arm64
-  TranscribeFunctionLogGroup:
+        - PolicyName: AnalyzeFunctionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: S3Policy
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectAcl
+                  - s3:GetObjectLegalHold
+                  - s3:GetObjectRetention
+                  - s3:GetObjectTorrent
+                  - s3:GetObjectVersion
+                  - s3:GetObjectVersionAcl
+                  - s3:GetObjectVersionForReplication
+                  - s3:GetObjectVersionTorrent
+                  - s3:ListBucket
+                  - s3:ListBucketMultipartUploads
+                  - s3:ListBucketVersions
+                  - s3:ListMultipartUploadParts
+                  - s3:AbortMultipartUpload
+                  - s3:DeleteObject
+                  - s3:DeleteObjectVersion
+                  - s3:PutObject
+                  - s3:PutObjectLegalHold
+                  - s3:PutObjectRetention
+                  - s3:RestoreObject
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${InputBucket}
+                  - !Sub arn:${AWS::Partition}:s3:::${InputBucket}/*
+              - Sid: TranscriptionPolicy
+                Effect: Allow
+                Action:
+                  - transcribe:StartTranscriptionJob
+                Resource: '*'
+              - Sid: BedrockPolicy
+                Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource: '*'
+              - Sid: SNSPublishMessagePolicy
+                Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource:
+                  - !Ref OutputNotificationTopic
+
+  AnalyzeFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Retain
     Properties:
-      LogGroupName: !Sub /aws/lambda/${TranscribeFunction}
-  TranscribeBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub ${AWS::StackName}-transcribe-bucket-${AWS::AccountId}
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: aws:kms
-              KMSMasterKeyID: alias/aws/s3
-      PublicAccessBlockConfiguration:
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-  TranscribeBucketBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref TranscribeBucket
-      PolicyDocument:
-        Id: RequireEncryptionInTransit
-        Version: '2012-10-17'
-        Statement:
-          - Principal: '*'
-            Action: '*'
-            Effect: Deny
-            Resource:
-              - !GetAtt TranscribeBucket.Arn
-              - !Sub ${TranscribeBucket.Arn}/*
-            Condition:
-              Bool:
-                aws:SecureTransport: 'false'
+      LogGroupName: !Sub /aws/lambda/${AnalyzeFunction}
+
   AnalyzeFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -128,107 +128,79 @@ Resources:
       Handler: handler.handler
       Runtime: python3.11
       MemorySize: 3008
-      Timeout: 30
+      Timeout: 900 # 15 minutes
       Tracing: Active
-      Events:
-        TranscribeBucket:
-          Type: S3
-          Properties:
-            Bucket: !Ref TranscribeBucket
-            Events:
-              - s3:ObjectCreated:*
-              - s3:ObjectRemoved:*
-      Environment:
-        Variables:
-          OUTPUTBUCKET_BUCKET_NAME: !Ref OutputBucket
-          OUTPUTBUCKET_BUCKET_ARN: !GetAtt OutputBucket.Arn
-      Policies:
-        - Statement:
-            - Effect: Allow
-              Action:
-                - s3:GetObject
-                - s3:GetObjectAcl
-                - s3:GetObjectLegalHold
-                - s3:GetObjectRetention
-                - s3:GetObjectTorrent
-                - s3:GetObjectVersion
-                - s3:GetObjectVersionAcl
-                - s3:GetObjectVersionForReplication
-                - s3:GetObjectVersionTorrent
-                - s3:ListBucket
-                - s3:ListBucketMultipartUploads
-                - s3:ListBucketVersions
-                - s3:ListMultipartUploadParts
-                - s3:AbortMultipartUpload
-                - s3:DeleteObject
-                - s3:DeleteObjectVersion
-                - s3:PutObject
-                - s3:PutObjectLegalHold
-                - s3:PutObjectRetention
-                - s3:RestoreObject
-              Resource:
-                - !Sub arn:${AWS::Partition}:s3:::${OutputBucket}
-                - !Sub arn:${AWS::Partition}:s3:::${OutputBucket}/*
+      Role: !GetAtt AnalyzeFunctionRole.Arn
+      # Events:
+      #   InputBucketTrigger:
+      #     Type: S3
+      #     Properties:
+      #       Bucket: !Ref InputBucket
+      #       Events:
+      #         - s3:ObjectCreated:*
       Architectures:
         - arm64
-  AnalyzeFunctionLogGroup:
-    Type: AWS::Logs::LogGroup
-    DeletionPolicy: Retain
+      Environment:
+        Variables:
+          OUTPUTNOTIFICATIONTOPIC_TOPIC_NAME: !GetAtt OutputNotificationTopic.TopicName
+          OUTPUTNOTIFICATIONTOPIC_TOPIC_ARN: !Ref OutputNotificationTopic
+
+  AnalyzeFunctionInputBucketPermission:
+    Type: AWS::Lambda::Permission
     Properties:
-      LogGroupName: !Sub /aws/lambda/${AnalyzeFunction}
-  OutputBucket:
-    Type: AWS::S3::Bucket
+      FunctionName: !Ref AnalyzeFunction
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !GetAtt InputBucket.Arn
+
+  #----
+  # ApplyNotification
+  #----
+
+  ApplyNotificationFunctionRole:
+    Type: AWS::IAM::Role
     Properties:
-      BucketName: !Sub ${AWS::StackName}-output-bucket-${AWS::AccountId}
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: aws:kms
-              KMSMasterKeyID: alias/aws/s3
-      PublicAccessBlockConfiguration:
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      NotificationConfiguration:
-        TopicConfigurations:
-          - Event: s3:ObjectCreated:*
-            Topic: !Ref OutputNotificationTopic
-          - Event: s3:ObjectRemoved:*
-            Topic: !Ref OutputNotificationTopic
-    DependsOn:
-      - OutputBucketToOutputNotificationTopicPermission
-  OutputBucketBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref OutputBucket
-      PolicyDocument:
-        Id: RequireEncryptionInTransit
-        Version: '2012-10-17'
-        Statement:
-          - Principal: '*'
-            Action: '*'
-            Effect: Deny
-            Resource:
-              - !GetAtt OutputBucket.Arn
-              - !Sub ${OutputBucket.Arn}/*
-            Condition:
-              Bool:
-                aws:SecureTransport: 'false'
-  OutputNotificationTopic:
-    Type: AWS::SNS::Topic
-  OutputBucketToOutputNotificationTopicPermission:
-    Type: AWS::SNS::TopicPolicy
-    Properties:
-      PolicyDocument:
+      AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal:
-              Service: s3.amazonaws.com
-            Action: sns:Publish
-            Resource: !Ref OutputNotificationTopic
-            Condition:
-              ArnEquals:
-                aws:SourceArn: !Sub arn:${AWS::Partition}:s3:::${AWS::StackName}-output-bucket-${AWS::AccountId}
-      Topics:
-        - !Ref OutputNotificationTopic
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Path: /
+      Policies:
+        - PolicyName: S3BucketNotificationPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: AllowBucketNotification
+                Effect: Allow
+                Action: s3:PutBucketNotification
+                Resource:
+                  - !Sub arn:aws:s3:::${InputBucket}
+                  - !Sub arn:aws:s3:::${InputBucket}/*
+
+  ApplyBucketNotificationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: https://aws.amazon.com/blogs/mt/resolving-circular-dependency-in-provisioning-of-amazon-s3-buckets-with-aws-lambda-event-notifications/
+      CodeUri: src/apply-notification
+      Handler: handler.handler
+      Runtime: python3.11
+      MemorySize: 3008
+      Timeout: 240
+      Tracing: Active
+      Role: !GetAtt ApplyNotificationFunctionRole.Arn
+
+  ApplyNotification:
+    Type: Custom::ApplyNotification
+    Properties:
+      ServiceToken: !GetAtt ApplyBucketNotificationFunction.Arn
+      S3Bucket: !Ref InputBucket
+      FunctionARN: !GetAtt AnalyzeFunction.Arn
+      NotificationId: S3ObjectCreatedEvent
+
 Transform: AWS::Serverless-2016-10-31
