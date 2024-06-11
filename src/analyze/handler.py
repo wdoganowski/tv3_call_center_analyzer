@@ -14,7 +14,7 @@ logger.setLevel(logging.INFO)
 # Define the directories
 TRANSCRIBE_DIR = 'recordings/'
 TRANSCRIBE_EXT = '.mp3'
-ANALYZE_DIR = 'analyze/'
+ANALYZE_DIR = 'transcripts/'
 ANALYZE_EXT = '.json'
 OUTPUT_DIR = 'output/'
 OUTPUT_EXT = '.txt'
