@@ -19,7 +19,25 @@ def addBucketNotification(bucketName, notificationId, functionArn):
                     'LambdaFunctionArn': functionArn,
                     'Events': [
                         's3:ObjectCreated:*'
-                    ]
+                    ],
+                    'Filter': {
+                        'Key': {
+                            'FilterRules': [
+                                {
+                                    'Name': 'suffix',
+                                    'Value': '.mp4'
+                                },
+                                {
+                                    "Name": "suffix",
+                                    "Value": ".json"
+                                },
+                                {
+                                    "Name": "suffix",
+                                    "Value": ".txt"
+                                }
+                            ]
+                        }
+                    }
                 },
             ]
         }

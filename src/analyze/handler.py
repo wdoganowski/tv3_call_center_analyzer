@@ -25,7 +25,7 @@ handled_event_names = ['ObjectCreated:Copy', 'ObjectCreated:Put']
 def transcribe(input_s3_bucket: str, input_s3_key: str) -> dict:
     # Verify if it is an mp3 file
     if not input_s3_key.endswith(TRANSCRIBE_EXT):
-        logger.error(
+        logger.warning(
             f"Invalid file type: s3://{input_s3_bucket}/{input_s3_key}")
         return {
             'statusCode': 400,
@@ -133,7 +133,7 @@ def format_content(data: dict) -> str:
 def analyze(input_s3_bucket: str, input_s3_key: str) -> dict:
     # Verify if it is an json file
     if not input_s3_key.endswith(ANALYZE_EXT):
-        logger.error(
+        logger.warning(
             f"Invalid file type: s3://{input_s3_bucket}/{input_s3_key}")
         return {
             'statusCode': 400,
@@ -265,7 +265,7 @@ def analyze(input_s3_bucket: str, input_s3_key: str) -> dict:
         start_time = time.time()
         response = bedrock_client.invoke_model(body=body, modelId=BEDROCK_MODEL_ID)
         end_time = time.time()
-        logger.info(f"Bedrock total time {end_time - start_time}")
+        logger.info(f"Bedrock total time spent thinking: {round(end_time - start_time, 2)}s")
 
         logger.debug(response)
 
@@ -307,7 +307,7 @@ def analyze(input_s3_bucket: str, input_s3_key: str) -> dict:
 def notify(input_s3_bucket: str, input_s3_key: str) -> dict:
     # Verify if it is an txt file
     if not input_s3_key.endswith(OUTPUT_EXT):
-        logger.error(
+        logger.warning(
             f"Invalid file type: s3://{input_s3_bucket}/{input_s3_key}")
         return {
             'statusCode': 400,
@@ -329,8 +329,15 @@ def notify(input_s3_bucket: str, input_s3_key: str) -> dict:
         # Send the text to the SNS topic
         sns = boto3.client('sns')
         sns_topic_arn = os.getenv('OUTPUTNOTIFICATIONTOPIC_TOPIC_ARN')
+        
+        # For local run
+        if sns_topic_arn == 'OutputNotificationTopic':
+            sns_topic_arn = 'arn:aws:sns:us-east-1:566701277865:call-center-analyzer-notification-topic-566701277865'
+        logger.info(f"SNS topic ARN: {sns_topic_arn}")
+        
         if sns_topic_arn:
-            sns.publish(TopicArn=sns_topic_arn, Message=text, Subject='Call Analysis of ' + original_input_s3_key)
+            subject = 'Call Analysis of ' + os.path.basename(original_input_s3_key)
+            sns.publish(TopicArn=sns_topic_arn, Message=text, Subject=subject)
             logger.info(f"Text sent to SNS topic: {sns_topic_arn}")
             return {
                 'statusCode': 200,
@@ -359,7 +366,7 @@ def handler(event, context):
         input_s3_bucket = event['Records'][0]['s3']['bucket']['name']
         input_s3_key = event['Records'][0]['s3']['object']['key']
     except KeyError:
-        logger.error(f"Invalid event data {event}")
+        logger.warning(f"Invalid event data {event}")
         return {
             'statusCode': 400,
             'body': 'Invalid event data'
@@ -375,7 +382,7 @@ def handler(event, context):
         elif input_s3_key.startswith(OUTPUT_DIR):
             response = notify(input_s3_bucket, input_s3_key)
         else:
-            logger.error(
+            logger.warning(
                 f"Invalid file path: s3://{input_s3_bucket}/{input_s3_key}")
             return {
                 'statusCode': 400,
