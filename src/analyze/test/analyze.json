@@ -27,7 +27,7 @@
 					"arn": "arn:aws:s3:::tv3-call-center-12345"
 				},
 				"object": {
-					"key": "analyze/lv/nevelas_runat.json",
+					"key": "transcripts/lv/nevelas_runat.json",
 					"size": 1024,
 					"eTag": "0123456789abcdef0123456789abcdef",
 					"sequencer": "0A1B2C3D4E5F678901"
