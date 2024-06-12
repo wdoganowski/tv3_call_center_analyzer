@@ -177,14 +177,14 @@ def analyze(input_s3_bucket: str, input_s3_key: str) -> dict:
             
     # Get the transcript from the Amazon Transcribe job
     try:
-        instructions.language_code = json_data['results']['language_code']
+        language_code = json_data['results']['language_code']
     except KeyError:
         logger.error("Error getting language code")
         return {
             'statusCode': 500,
             'body': 'Internal server error: Error getting language code'
         }
-    logger.info(f"Input data is in language {instructions.language_code}")
+    logger.info(f"Input data is in language {language_code}")
     # try:
     #     speaker_labels = json_data['results']['speaker_labels']
     # except KeyError:
@@ -220,7 +220,7 @@ def analyze(input_s3_bucket: str, input_s3_key: str) -> dict:
         }
     
     # Use the provided instructions to provide the summary. Use a default if no intructions are provided.
-    SUMMARY_INSTRUCTIONS = os.getenv('SUMMARY_INSTRUCTIONS',instructions.text)
+    SUMMARY_INSTRUCTIONS = os.getenv('SUMMARY_INSTRUCTIONS',instructions.get_instructions(language_code))
     logger.info(f"SUMMARY_INSTRUCTIONS: {SUMMARY_INSTRUCTIONS}")
     
     # Use the provided model ID to invoke the model.
@@ -394,7 +394,7 @@ def handler(event, context):
         }
 
     if response['statusCode'] != 200:
-        send_notification(f"Error processing file: s3://{input_s3_bucket}/{input_s3_key}", response['body'])
+        send_notification(f"Error processing file: s3://{input_s3_bucket}/{input_s3_key}", f"status code {response['statusCode']}/n{response['body']}")
         return response
         
     return response
