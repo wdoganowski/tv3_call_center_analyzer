@@ -1,3 +1,15 @@
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - uat
+      - prod
+  Owner:
+    Type: String
+    Default: wojciech.doganowski@tv3.lt
+
 Resources:
 
   #----
@@ -16,6 +28,15 @@ Resources:
       PublicAccessBlockConfiguration:
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
+      Tags:
+        - Key: AppManagerCFNStackKey
+          Value: !Ref 'AWS::StackId'
+        - Key: Project
+          Value: !Ref 'AWS::StackName'
+        - Key: Environment
+          Value: !Ref 'Environment'
+        - Key: Owner
+          Value: !Ref 'Owner'
 
   InputBucketBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -42,11 +63,20 @@ Resources:
   OutputNotificationTopic:
     Type: AWS::SNS::Topic
     Properties:
-      DisplayName: Call Analytics Output Notification Topic
+      DisplayName: Call Center Analytics
       TopicName: !Sub ${AWS::StackName}-notification-topic-${AWS::AccountId}
       Subscription:
         - Protocol: email
-          Endpoint: 'wojciech.doganowski@tv3.lt'
+          Endpoint: !Ref 'Owner'
+      Tags:
+        - Key: AppManagerCFNStackKey
+          Value: !Ref 'AWS::StackId'
+        - Key: Project
+          Value: !Ref 'AWS::StackName'
+        - Key: Environment
+          Value: !Ref 'Environment'
+        - Key: Owner
+          Value: !Ref 'Owner'
 
   #----
   # AnalyzeFunction
@@ -111,12 +141,32 @@ Resources:
                   - sns:Publish
                 Resource:
                   - !Ref OutputNotificationTopic
+      Tags:
+        - Key: AppManagerCFNStackKey
+          Value: !Ref 'AWS::StackId'
+        - Key: Project
+          Value: !Ref 'AWS::StackName'
+        - Key: Environment
+          Value: !Ref 'Environment'
+        - Key: Owner
+          Value: !Ref 'Owner'
 
   AnalyzeFunctionLogGroup:
     Type: AWS::Logs::LogGroup
-    DeletionPolicy: Retain
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
     Properties:
       LogGroupName: !Sub /aws/lambda/${AnalyzeFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: AppManagerCFNStackKey
+          Value: !Ref 'AWS::StackId'
+        - Key: Project
+          Value: !Ref 'AWS::StackName'
+        - Key: Environment
+          Value: !Ref 'Environment'
+        - Key: Owner
+          Value: !Ref 'Owner'
 
   AnalyzeFunction:
     Type: AWS::Serverless::Function
@@ -144,6 +194,11 @@ Resources:
         Variables:
           OUTPUTNOTIFICATIONTOPIC_TOPIC_NAME: !GetAtt OutputNotificationTopic.TopicName
           OUTPUTNOTIFICATIONTOPIC_TOPIC_ARN: !Ref OutputNotificationTopic
+      Tags:
+        AppManagerCFNStackKey: !Ref 'AWS::StackId'
+        Project: !Ref 'AWS::StackName'
+        Environment: !Ref 'Environment'
+        Owner: !Ref 'Owner'
 
   AnalyzeFunctionInputBucketPermission:
     Type: AWS::Lambda::Permission
@@ -182,19 +237,116 @@ Resources:
                 Resource:
                   - !Sub arn:aws:s3:::${InputBucket}
                   - !Sub arn:aws:s3:::${InputBucket}/*
+      Tags:
+        - Key: AppManagerCFNStackKey
+          Value: !Ref 'AWS::StackId'
+        - Key: Project
+          Value: !Ref 'AWS::StackName'
+        - Key: Environment
+          Value: !Ref 'Environment'
+        - Key: Owner
+          Value: !Ref 'Owner'
+
+  ApplyBucketNotificationFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${ApplyBucketNotificationFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: AppManagerCFNStackKey
+          Value: !Ref 'AWS::StackId'
+        - Key: Project
+          Value: !Ref 'AWS::StackName'
+        - Key: Environment
+          Value: !Ref 'Environment'
+        - Key: Owner
+          Value: !Ref 'Owner'
 
   ApplyBucketNotificationFunction:
-    Type: AWS::Serverless::Function
+    Type: AWS::Lambda::Function
     Properties:
       Description: https://aws.amazon.com/blogs/mt/resolving-circular-dependency-in-provisioning-of-amazon-s3-buckets-with-aws-lambda-event-notifications/
-      CodeUri: src/apply-notification
-      Handler: handler.handler
+      # CodeUri: src/apply-notification
+      Handler: index.handler
       Runtime: python3.11
       MemorySize: 3008
       Timeout: 240
-      Tracing: Active
+      # Tracing: Active
       Role: !GetAtt ApplyNotificationFunctionRole.Arn
+      Tags:
+        - Key: AppManagerCFNStackKey
+          Value: !Ref 'AWS::StackId'
+        - Key: Project
+          Value: !Ref 'AWS::StackName'
+        - Key: Environment
+          Value: !Ref 'Environment'
+        - Key: Owner
+          Value: !Ref 'Owner'
+      Code:
+        ZipFile: |
+          import boto3
+          import logging
+          import json
+          import cfnresponse
 
+          s3Client = boto3.client('s3')
+          logger = logging.getLogger()
+          logger.setLevel(logging.DEBUG)
+
+          def addBucketNotification(bucketName, notificationId, functionArn):
+            notificationResponse = s3Client.put_bucket_notification_configuration(
+              Bucket=bucketName,
+              NotificationConfiguration={
+                'LambdaFunctionConfigurations': [
+                  {
+                    'Id': notificationId,
+                    'LambdaFunctionArn': functionArn,
+                    'Events': [
+                      's3:ObjectCreated:*'
+                    ]
+                  },
+                ]
+              }
+            )
+            return notificationResponse
+
+          def create(properties, physical_id):
+            bucketName = properties['S3Bucket']
+            notificationId = properties['NotificationId']
+            functionArn = properties['FunctionARN']
+            response = addBucketNotification(bucketName, notificationId, functionArn)
+            logger.info('AddBucketNotification response: %s' % json.dumps(response))
+            return cfnresponse.SUCCESS, physical_id
+
+          def update(properties, physical_id):
+            return cfnresponse.SUCCESS, None
+
+          def delete(properties, physical_id):
+            return cfnresponse.SUCCESS, None
+
+          def handler(event, context):
+            logger.info('Received event: %s' % json.dumps(event))
+
+            status = cfnresponse.FAILED
+            new_physical_id = None
+
+            try:
+              properties = event.get('ResourceProperties')
+              physical_id = event.get('PhysicalResourceId')
+
+              status, new_physical_id = {
+                'Create': create,
+                'Update': update,
+                'Delete': delete
+              }.get(event['RequestType'], lambda x, y: (cfnresponse.FAILED, None))(properties, physical_id)
+            except Exception as e:
+              logger.error('Exception: %s' % e)
+              status = cfnresponse.FAILED
+            finally:
+              cfnresponse.send(event, context, status, {}, new_physical_id)
+        
   ApplyNotification:
     Type: Custom::ApplyNotification
     Properties:
@@ -202,5 +354,14 @@ Resources:
       S3Bucket: !Ref InputBucket
       FunctionARN: !GetAtt AnalyzeFunction.Arn
       NotificationId: S3ObjectCreatedEvent
+      Tags:
+        - Key: AppManagerCFNStackKey
+          Value: !Ref 'AWS::StackId'
+        - Key: Project
+          Value: !Ref 'AWS::StackName'
+        - Key: Environment
+          Value: !Ref 'Environment'
+        - Key: Owner
+          Value: !Ref 'Owner'
 
 Transform: AWS::Serverless-2016-10-31
