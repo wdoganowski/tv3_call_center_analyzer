@@ -1,0 +1,6 @@
+{
+    "Parameters": {
+        "Environment": "dev",
+        "OUTPUTNOTIFICATIONTOPIC_TOPIC_ARN": "arn:aws:sns:eu-central-1:613695894342:call-center-analyzer-notification-topic-613695894342"
+    }
+}

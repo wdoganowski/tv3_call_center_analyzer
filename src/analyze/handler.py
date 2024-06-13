@@ -175,7 +175,7 @@ def analyze(input_s3_bucket: str, input_s3_key: str) -> dict:
             'body': f'Internal server error: Error decoding input file: {e}'
         }
             
-    # Get the transcript from the Amazon Transcribe job
+    # Get the language of the transcript
     try:
         language_code = json_data['results']['language_code']
     except KeyError:
@@ -185,15 +185,8 @@ def analyze(input_s3_bucket: str, input_s3_key: str) -> dict:
             'body': 'Internal server error: Error getting language code'
         }
     logger.info(f"Input data is in language {language_code}")
-    # try:
-    #     speaker_labels = json_data['results']['speaker_labels']
-    # except KeyError:
-    #     logger.error("Error getting speaker labels")
-    #     return {
-    #         'statusCode': 500,
-    #         'body': 'Internal server error: Error getting speaker labels'
-    #     }
-    # logger.info(f"Spearker labels: {speaker_labels}")
+    
+    # Get the transcript from the Amazon Transcribe job
     speaker_formatted_content = format_content(json_data)
     if speaker_formatted_content == "":
         logger.error("Error formatting content")
@@ -297,10 +290,6 @@ def send_notification(subject: str, message: str) -> dict:
     # Send the text to the SNS topic
     sns = boto3.client('sns')
     sns_topic_arn = os.getenv('OUTPUTNOTIFICATIONTOPIC_TOPIC_ARN')
-    
-    # For local run
-    if sns_topic_arn == 'OutputNotificationTopic':
-        sns_topic_arn = 'arn:aws:sns:eu-central-1:613695894342:call-center-analyzer-notification-topic-613695894342'
     logger.info(f"SNS topic ARN: {sns_topic_arn}")
     
     if sns_topic_arn:

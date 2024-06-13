@@ -1,3 +1,5 @@
+Transform: AWS::Serverless-2016-10-31
+
 Parameters:
   Environment:
     Type: String
@@ -8,7 +10,7 @@ Parameters:
       - prod
   Owner:
     Type: String
-    Default: wojciech.doganowski@tv3.lt
+    # Use sam deploy --parameter-overrides Owner={your-email} to set this value
 
 Resources:
 
@@ -211,6 +213,10 @@ Resources:
 
   #----
   # ApplyNotification
+  #
+  # To avoid the cirtular dependency between AnalyzeFunction and InputBucket, 
+  # we need to apply the notification in runtime.
+  # Reference: https://aws.amazon.com/blogs/mt/resolving-circular-dependency-in-provisioning-of-amazon-s3-buckets-with-aws-lambda-event-notifications/
   #----
 
   ApplyNotificationFunctionRole:
@@ -364,4 +370,23 @@ Resources:
         - Key: Owner
           Value: !Ref 'Owner'
 
-Transform: AWS::Serverless-2016-10-31
+#----
+# Outputs
+#----
+
+Outputs:
+  OutputNotificationTopic:
+    Description: Notification Topic for Call Center Analytics
+    Value: !Ref OutputNotificationTopic
+    Export:
+      Name: !Sub ${AWS::StackName}-OutputNotificationTopic
+  AnalyzeFunction:
+    Description: AnalyzeFunction ARN
+    Value: !GetAtt AnalyzeFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-AnalyzeFunction
+  InputBucket:
+    Description: InputBucket ARN
+    Value: !Ref InputBucket
+    Export:
+      Name: !Sub ${AWS::StackName}-InputBucket

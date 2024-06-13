@@ -42,17 +42,18 @@ sam build
 
 ## Testing
 
+Update the `events\` and `environments\` json files with the arns of your test resources and runn the following:
+
 ``` sh
-sam local invoke AnalyzeFunction --event src/analyze/test/analyze.json
-sam local invoke AnalyzeFunction --event src/analyze/test/analyze-large.json
-sam local invoke AnalyzeFunction --event src/analyze/test/transcribe.json
-sam local invoke AnalyzeFunction --event src/analyze/test/notify-long-names.json
+sam local invoke AnalyzeFunction --event events/analyze.json --env-vars environments/dev.json
+sam local invoke AnalyzeFunction --event events/transcribe.json --env-vars environments/dev.json
+sam local invoke AnalyzeFunction --event events/notify.json --env-vars environments/dev.json
 ```
 
 ## Deploy
 
 ```sh
-sam deploy
+sam deploy --parameter-overrides Owner={your-email-address}
 ```
 
 ## Additional configuration
