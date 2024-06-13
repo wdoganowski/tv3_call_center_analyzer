@@ -30,9 +30,17 @@ Label it "3. Translated Conversation:"
 
 The result is set to the SNS topic.
 
+## S3 Bucket Structure
+
+The following directory structure is created in the S3 bucket:
+
+- `recordings/` - The input directory for the mp3 files with the recordings
+- `transcribes/` - The directory with the json file with the Amazon Transcribe results
+- `output/` - The directory with the translation and analyzys ready for sending out
+
 ## Preparation
 
-In `template.yml` change `Environment` and `Owner` parameters.
+In `template.yml` change `Environment` and optionally set the `Owner` parameter.
 
 ## Building
 
@@ -52,8 +60,16 @@ sam local invoke AnalyzeFunction --event events/notify.json --env-vars environme
 
 ## Deploy
 
+If the `Owner` parameter has no default value, you need to specify it here:
+
 ```sh
 sam deploy --parameter-overrides Owner={your-email-address}
+```
+
+Otherwise just deploy without any parameters:
+
+```sh
+sam deploy
 ```
 
 ## Additional configuration
