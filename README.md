@@ -1,6 +1,6 @@
 # Call Center Analyzer
 
-Use the Amazon Transcribe to prepare the transcription of the call and the Berdock with `Anthropic Claude 3 Sonnet` model to prepare the tranlation and analyzis.
+Use the Amazon Transcribe to prepare the transcription of the call and the Bedrock with `Anthropic Claude 3 Sonnet` model to prepare the translation and analyses.
 
 The Bedrock is prompted with following instruction:
 
@@ -36,7 +36,9 @@ The following directory structure is created in the S3 bucket:
 
 - `recordings/` - The input directory for the mp3 files with the recordings
 - `transcribes/` - The directory with the json file with the Amazon Transcribe results
-- `output/` - The directory with the translation and analyzys ready for sending out
+- `output/` - The directory with the translation and analyses ready for sending out
+
+Further explanation is available here in [the article describing this project](thttps://github.com/wdoganowski/cloud-chronicles/tree/95af666925520705a2e2334e373639128f09cd8a/08.%20Transforming%20Call%20Center%20Analytics%20with%20AWS%20Bedrock).
 
 ## Preparation
 
@@ -50,7 +52,7 @@ sam build
 
 ## Testing
 
-Update the `events\` and `environments\` json files with the arns of your test resources and runn the following:
+Update the `events\` and `environments\` json files with the ARNs of your test resources and rnn the following:
 
 ``` sh
 sam local invoke AnalyzeFunction --event events/analyze.json --env-vars environments/dev.json
@@ -79,8 +81,8 @@ sam deploy
 
 ## Environemnt Variables
 
-The process may be modified using environemnt variables:
+The process may be modified using environment variables:
 
 1. `SUMMARY_INSTRUCTIONS` Modify the instruction
-2. `BEDROCK_MODEL_ID` Modify the Amazon Medrock base model
+2. `BEDROCK_MODEL_ID` Modify the Amazon Bedrock base model
 3. `OUTPUTNOTIFICATIONTOPIC_TOPIC_ARN` Modify the SNS topic

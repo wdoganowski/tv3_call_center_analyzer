@@ -23,7 +23,31 @@ OUTPUT_EXT = '.txt'
 handled_event_names = ['ObjectCreated:Copy', 'ObjectCreated:Put']
 
 
-def transcribe(input_s3_bucket: str, input_s3_key: str) -> dict:
+"""
+Transcribe an audio file stored in an S3 bucket using Amazon Transcribe.
+
+This function takes an S3 bucket name and an S3 key (file path) as input,
+and initiates an Amazon Transcribe job to transcribe the audio file.
+The function generates a unique job name, sets the output file name and location,
+and configures the Transcribe job with the appropriate settings.
+
+If the input file is not an MP3 file, the function returns an error response.
+If there are any errors creating the Transcribe client or starting the transcription job,
+the function returns an error response.
+
+Upon successful initiation of the transcription job, the function returns a success response.
+
+Args:
+    input_s3_bucket (str): The name of the S3 bucket where the input audio file is stored.
+    input_s3_key (str): The S3 key (file path) of the input audio file in mp3.
+
+Returns:
+    dict: A dictionary containing the response from the transcription job initiation.
+        The dictionary has the following keys:
+        - 'statusCode': The HTTP status code of the response.
+        - 'body': A string representing the response body.
+"""
+def transcribe(input_s3_bucket: str, input_s3_key: str) -> dict:        
     # Verify if it is an mp3 file
     if not input_s3_key.endswith(TRANSCRIBE_EXT):
         logger.warning(
@@ -91,8 +115,43 @@ def transcribe(input_s3_bucket: str, input_s3_key: str) -> dict:
     }
 
 
+"""
+Format the content of a transcription result from Amazon Transcribe.
+
+This function takes a dictionary containing the results of an Amazon Transcribe
+job and formats the content into a human-readable format. The function loops
+through the individual items in the transcription result, grouping the content
+by speaker and adding timestamps and speaker labels to each line.
+
+The function is based on the example provided in the Amazon Bedrock samples
+repository: https://github.com/aws-samples/amazon-bedrock-samples/blob/main/generative-ai-solutions/recordings-summary-generator/recordings-summary-generation.yaml
+
+Args:
+data (dict): A dictionary containing the results of an Amazon Transcribe job.
+        The dictionary should have the following structure:
+        {
+            'results': {
+                'items': [
+                    {
+                        'start_time': float,
+                        'speaker_label': str,
+                        'alternatives': [
+                            {
+                                'content': str
+                            }
+                        ],
+                        'type': str
+                    },
+                    ...
+                ]
+            }
+        }
+
+Returns:
+    str: A formatted string containing the transcription content, with speaker
+        labels and timestamps.
+"""
 def format_content(data: dict) -> str:
-    # Source: https://github.com/aws-samples/amazon-bedrock-samples/blob/main/generative-ai-solutions/recordings-summary-generator/recordings-summary-generation.yaml
     lines = []
     line = ''
     speaker = 'spk_1'
@@ -131,7 +190,35 @@ def format_content(data: dict) -> str:
     return speaker_formatted_content
 
 
+"""
+Analyze a transcript file stored in an S3 bucket using Amazon Bedrock.
+
+This function takes an S3 bucket name and an S3 key (file path) as input,
+and reads the transcript file from the specified location. It then formats
+the transcript content and uses the Amazon Bedrock service to analyze the
+transcript and generate a summary.
+
+The function first verifies that the input file is a JSON file, and then
+reads the file from the S3 bucket. It extracts the language code from the
+transcript data and formats the content using the `format_content` function.
+
+Next, the function creates an Amazon Bedrock client and invokes the
+appropriate model to analyze the transcript. The analysis result is then
+saved back to the S3 bucket.
+
+Args:
+    input_s3_bucket (str): The name of the S3 bucket where the input transcript
+        file is stored.
+    input_s3_key (str): The S3 key (file path) of the input transcript file.
+
+Returns:
+    dict: A dictionary containing the response from the analysis operation.
+        The dictionary has the following keys:
+        - 'statusCode': The HTTP status code of the response.
+        - 'body': A string representing the response body.
+"""
 def analyze(input_s3_bucket: str, input_s3_key: str) -> dict:
+
     # Verify if it is an json file
     if not input_s3_key.endswith(ANALYZE_EXT):
         logger.warning(
@@ -286,6 +373,30 @@ def analyze(input_s3_bucket: str, input_s3_key: str) -> dict:
     }
 
 
+"""
+Send a notification message to an Amazon SNS topic.
+
+This function takes a subject and a message as input, and sends the message
+to an Amazon SNS topic. The topic ARN is retrieved from an environment
+variable named `OUTPUTNOTIFICATIONTOPIC_TOPIC_ARN`.
+
+If the topic ARN is not set, the function logs an error and returns an
+error response. If there is an exception while publishing the message to
+the topic, the function logs the error and returns an error response.
+
+If the message is successfully published to the SNS topic, the function
+returns a success response.
+
+Args:
+    subject (str): The subject of the notification message.
+    message (str): The content of the notification message.
+
+Returns:
+    dict: A dictionary containing the response from the SNS publish operation.
+        The dictionary has the following keys:
+        - 'statusCode': The HTTP status code of the response.
+        - 'body': A string representing the response body.
+"""
 def send_notification(subject: str, message: str) -> dict:
     # Send the text to the SNS topic
     sns = boto3.client('sns')
@@ -315,6 +426,34 @@ def send_notification(subject: str, message: str) -> dict:
         }
         
 
+"""
+Notify about a file processed by the Call Center Analyzer.
+
+This function is responsible for handling the notification process after a
+file has been processed by the Call Center Analyzer. It performs the following
+steps:
+
+1. Verifies that the input file is a text file (with the `.txt` extension).
+2. Generates the original input file name by replacing the output directory
+   and extension with the corresponding transcription directory and extension.
+3. Reads the content of the input text file from the S3 bucket.
+4. Sends a notification message to an Amazon SNS topic, using the
+   `send_notification` function.
+
+If the input file is not a text file, the function returns an error response.
+If there is an exception while reading the input file, the function logs the
+error and returns an error response.
+
+Args:
+    input_s3_bucket (str): The name of the S3 bucket where the input file is stored.
+    input_s3_key (str): The S3 key (file path) of the input file.
+
+Returns:
+    dict: A dictionary containing the response from the notification process.
+        The dictionary has the following keys:
+        - 'statusCode': The HTTP status code of the response.
+        - 'body': A string representing the response body.
+"""
 def notify(input_s3_bucket: str, input_s3_key: str) -> dict:
     # Verify if it is an txt file
     if not input_s3_key.endswith(OUTPUT_EXT):
@@ -346,6 +485,39 @@ def notify(input_s3_bucket: str, input_s3_key: str) -> dict:
         return response
 
 
+"""
+AWS Lambda function to handle S3 object creation events.
+
+This function is the main entry point for the AWS Lambda function that
+processes files uploaded to an S3 bucket. It is triggered by S3 object
+creation events and performs the following steps:
+
+1. Retrieves the S3 bucket name and object key from the event data.
+2. Determines the type of file based on the object key and calls the
+   appropriate processing function (transcribe, analyze, or notify).
+3. If the file is successfully processed, the function returns the response
+   from the processing function.
+4. If there is an error during the processing, the function sends a
+   notification to an SNS topic and returns the error response.
+
+The function supports the following file types:
+- `.mp3` files: Transcribed using Amazon Transcribe
+- `.json` files: Analyzed using Amazon Bedrock
+- `.txt` files: Notifications are sent for these files
+
+If the event is not an ObjectCreated:Put event or the file type is not
+supported, the function skips the processing and returns a success response.
+
+Args:
+    event (dict): The event data from the S3 object creation event.
+    context (object): The AWS Lambda execution context.
+
+Returns:
+    dict: A dictionary containing the response from the processing function.
+        The dictionary has the following keys:
+        - 'statusCode': The HTTP status code of the response.
+        - 'body': A string representing the response body.
+"""
 def handler(event, context):
     # Retrieve the S3 bucket and object information from the event
     try:

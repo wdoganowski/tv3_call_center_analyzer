@@ -1,4 +1,6 @@
-# This file contains the instructions for the gen AI model to translate the conversation of the customer.
+"""
+This file contains the instructions for the gen AI model to translate the conversation of the customer.
+"""
 
 text = """
 You are responsible for translating the conversation of the call center agent
