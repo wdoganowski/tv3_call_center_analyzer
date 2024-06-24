@@ -8,9 +8,14 @@ Parameters:
       - dev
       - uat
       - prod
+    # Use sam deploy --parameter-overrides Environment={env} to set this value
   Owner:
     Type: String
     # Use sam deploy --parameter-overrides Owner={your-email} to set this value
+  MapMigrated:
+    Type: String
+    Default: not-migrated
+    # Use sam deploy --parameter-overrides MapMigrated={migration-code} to set this value
 
 Resources:
 
@@ -39,6 +44,8 @@ Resources:
           Value: !Ref 'Environment'
         - Key: Owner
           Value: !Ref 'Owner'
+        - Key: map-migrated
+          Value: !Ref 'MapMigrated'
 
   InputBucketBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -79,6 +86,8 @@ Resources:
           Value: !Ref 'Environment'
         - Key: Owner
           Value: !Ref 'Owner'
+        - Key: map-migrated
+          Value: !Ref 'MapMigrated'
 
   #----
   # AnalyzeFunction
@@ -152,6 +161,8 @@ Resources:
           Value: !Ref 'Environment'
         - Key: Owner
           Value: !Ref 'Owner'
+        - Key: map-migrated
+          Value: !Ref 'MapMigrated'
 
   AnalyzeFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -169,6 +180,8 @@ Resources:
           Value: !Ref 'Environment'
         - Key: Owner
           Value: !Ref 'Owner'
+        - Key: map-migrated
+          Value: !Ref 'MapMigrated'
 
   AnalyzeFunction:
     Type: AWS::Serverless::Function
@@ -201,6 +214,7 @@ Resources:
         Project: !Ref 'AWS::StackName'
         Environment: !Ref 'Environment'
         Owner: !Ref 'Owner'
+        map-migrated: !Ref 'MapMigrated'
 
   AnalyzeFunctionInputBucketPermission:
     Type: AWS::Lambda::Permission
@@ -252,6 +266,8 @@ Resources:
           Value: !Ref 'Environment'
         - Key: Owner
           Value: !Ref 'Owner'
+        - Key: map-migrated
+          Value: !Ref 'MapMigrated'
 
   ApplyBucketNotificationFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -269,6 +285,8 @@ Resources:
           Value: !Ref 'Environment'
         - Key: Owner
           Value: !Ref 'Owner'
+        - Key: map-migrated
+          Value: !Ref 'MapMigrated'
 
   ApplyBucketNotificationFunction:
     Type: AWS::Lambda::Function
@@ -290,6 +308,8 @@ Resources:
           Value: !Ref 'Environment'
         - Key: Owner
           Value: !Ref 'Owner'
+        - Key: map-migrated
+          Value: !Ref 'MapMigrated'
       Code:
         ZipFile: |
           import boto3
@@ -369,6 +389,8 @@ Resources:
           Value: !Ref 'Environment'
         - Key: Owner
           Value: !Ref 'Owner'
+        - Key: map-migrated
+          Value: !Ref 'MapMigrated'
 
 #----
 # Outputs

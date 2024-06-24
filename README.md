@@ -65,7 +65,7 @@ sam local invoke AnalyzeFunction --event events/notify.json --env-vars environme
 If the `Owner` parameter has no default value, you need to specify it here:
 
 ```sh
-sam deploy --parameter-overrides Owner={your-email-address}
+sam deploy --parameter-overrides Owner={your-email-address} Environment={environment} MapMigrated={migration-code}
 ```
 
 Otherwise just deploy without any parameters:
