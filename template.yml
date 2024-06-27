@@ -336,8 +336,12 @@ Resources:
                       'Key': {
                         'FilterRules': [
                           {
+                            'Name': 'prefix',
+                            'Value': 'recordings/'
+                          },
+                          {
                             'Name': 'suffix',
-                            'Value': 'mp3'
+                            'Value': '.mp3'
                           }
                         ]
                       }
@@ -353,8 +357,12 @@ Resources:
                       'Key': {
                         'FilterRules': [
                           {
+                            'Name': 'prefix',
+                            'Value': 'transcripts/'
+                          },
+                          {
                             'Name': 'suffix',
-                            'Value': 'json'
+                            'Value': '.json'
                           }
                         ]
                       }
@@ -370,8 +378,12 @@ Resources:
                       'Key': {
                         'FilterRules': [
                           {
+                            'Name': 'prefix',
+                            'Value': 'output/'
+                          },
+                          {
                             'Name': 'suffix',
-                            'Value': 'txt'
+                            'Value': '.txt'
                           }
                         ]
                       }
@@ -397,7 +409,7 @@ Resources:
             response = addBucketNotification(bucketName, notificationId, functionArn)
             logger.info('AddBucketNotification response: %s' % json.dumps(response))
             return cfnresponse.SUCCESS, physical_id
-            
+
           def delete(properties, physical_id):
             return cfnresponse.SUCCESS, None
 
