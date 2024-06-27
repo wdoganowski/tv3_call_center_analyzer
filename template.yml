@@ -327,12 +327,56 @@ Resources:
               NotificationConfiguration={
                 'LambdaFunctionConfigurations': [
                   {
-                    'Id': notificationId,
+                    'Id': notificationId + '_mp3',
                     'LambdaFunctionArn': functionArn,
                     'Events': [
                       's3:ObjectCreated:*'
-                    ]
+                    ],
+                    'Filter': {
+                      'Key': {
+                        'FilterRules': [
+                          {
+                            'Name': 'suffix',
+                            'Value': 'mp3'
+                          }
+                        ]
+                      }
+                    }
                   },
+                  {
+                    'Id': notificationId + '_json',
+                    'LambdaFunctionArn': functionArn,
+                    'Events': [
+                      's3:ObjectCreated:*'
+                    ],
+                    'Filter': {
+                      'Key': {
+                        'FilterRules': [
+                          {
+                            'Name': 'suffix',
+                            'Value': 'json'
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    'Id': notificationId + '_txt',
+                    'LambdaFunctionArn': functionArn,
+                    'Events': [
+                      's3:ObjectCreated:*'
+                    ],
+                    'Filter': {
+                      'Key': {
+                        'FilterRules': [
+                          {
+                            'Name': 'suffix',
+                            'Value': 'txt'
+                          }
+                        ]
+                      }
+                    }
+                  }                
                 ]
               }
             )
@@ -347,8 +391,13 @@ Resources:
             return cfnresponse.SUCCESS, physical_id
 
           def update(properties, physical_id):
-            return cfnresponse.SUCCESS, None
-
+            bucketName = properties['S3Bucket']
+            notificationId = properties['NotificationId']
+            functionArn = properties['FunctionARN']
+            response = addBucketNotification(bucketName, notificationId, functionArn)
+            logger.info('AddBucketNotification response: %s' % json.dumps(response))
+            return cfnresponse.SUCCESS, physical_id
+            
           def delete(properties, physical_id):
             return cfnresponse.SUCCESS, None
 
